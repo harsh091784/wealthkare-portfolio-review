@@ -1,27 +1,2 @@
-# apt packages for Streamlit Community Cloud (Debian 11 "bullseye").
-#
-# THIS FILE MUST LIVE AT THE REPOSITORY ROOT. Streamlit Cloud only
-# detects packages.txt in the root - unlike requirements.txt, which it
-# will also read from the entrypoint's directory. While this sat next to
-# app.py it was never read, so NOTHING here was installed: cairosvg's
-# dlopen for libcairo.so.2 failed at import, and LibreOffice would have
-# been missing from the PDF path too.
-
-# libcairo.so.2 - what cairocffi (under cairosvg) dlopens to render the
-# mind map. This one package is the whole requirement: CairoSVG imports
-# cairocffi and nothing else native. libcairo-gobject2, libpango* and
-# libgdk-pixbuf* are WeasyPrint's dependencies, not CairoSVG's, and are
-# deliberately not listed - unused apt packages are install time and
-# attack surface for no benefit.
 libcairo2
-
-# docx -> PDF, and the page-number scan the two-pass TOC needs.
-# libreoffice-writer rather than the full libreoffice suite: same
-# `soffice` binary, far smaller, and the full suite frequently exceeds
-# the Community Cloud build limit. If it fails to install anyway, the
-# app ships the .docx alone rather than erroring.
 libreoffice-writer
-
-# The rupee glyph. Arial substitutes a missing box for it, which is why
-# every SVG text node names DejaVu Sans explicitly.
-fonts-dejavu
