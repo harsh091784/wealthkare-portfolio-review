@@ -332,7 +332,7 @@ elif S.step == 3:
         st.rerun()
 
     if right.button("Generate report", type="primary", disabled=not approved):
-        from pipeline.mindmap import generate_mindmap
+        from pipeline.mindmap import MindmapUnavailable, generate_mindmap
         from pipeline.pdf_converter import PdfUnavailable, build_report_deliverables
         from pipeline.summary_client import ClientSummary
 
@@ -343,9 +343,16 @@ elif S.step == 3:
             if assembled.mindmap_recommendations:
                 progress.progress(0.15, text="Drawing the mind map…")
                 mindmap = workdir / "mindmap.png"
-                generate_mindmap(assembled.mindmap_recommendations,
-                                 client_name=ctx.client_name, output_path=mindmap)
-                ctx.mindmap_path = mindmap
+                try:
+                    generate_mindmap(assembled.mindmap_recommendations,
+                                     client_name=ctx.client_name, output_path=mindmap)
+                    ctx.mindmap_path = mindmap
+                except MindmapUnavailable as unavailable:
+                    # An optional renderer is missing. The recommendations
+                    # themselves are unaffected and still appear in the
+                    # Transaction Snapshot, so the report goes ahead.
+                    ctx.mindmap_path = None
+                    ctx.mindmap_unavailable_reason = str(unavailable)
 
             ctx.client_summary = ClientSummary(text=S.summary_draft, approved=True,
                                                source=S.summary_source or "fallback")
@@ -376,6 +383,12 @@ elif S.step == 3:
 
     if S.deliverables:
         pdf_path, docx_path = S.deliverables
+        if getattr(ctx, "mindmap_unavailable_reason", None):
+            st.warning(
+                "**The mind map could not be drawn** — the diagram renderer is not "
+                "available in this environment. Every recommended change still appears "
+                "in the Transaction Snapshot table; only the picture is missing."
+            )
         if pdf_path is None:
             st.warning(
                 "**Report generated as .docx only — no PDF.**\n\n"

@@ -407,3 +407,115 @@ def test_password_is_not_left_in_session_state(monkeypatch):
     assert at.session_state["_authenticated"] is True
     held = at.session_state["_password_input"] if "_password_input" in at.session_state else None
     assert not held, "the plaintext password is still held in session state"
+
+
+# ==========================================================================
+# cairosvg / libcairo missing
+# ==========================================================================
+
+class _BlockCairosvg:
+    """Simulates a Debian image without libcairo2: importing cairosvg
+    raises OSError from cffi's dlopen, not ImportError."""
+
+    def find_module(self, name, path=None):
+        if name == "cairosvg":
+            raise OSError("simulated: cannot load library 'libcairo.so.2'")
+        return None
+
+    def find_spec(self, name, path=None, target=None):
+        if name == "cairosvg":
+            raise OSError("simulated: cannot load library 'libcairo.so.2'")
+        return None
+
+
+@pytest.fixture
+def no_cairosvg(monkeypatch):
+    import sys
+    blocker = _BlockCairosvg()
+    monkeypatch.setitem(sys.modules, "cairosvg", None)
+    monkeypatch.delitem(sys.modules, "cairosvg", raising=False)
+    sys.meta_path.insert(0, blocker)
+    try:
+        yield
+    finally:
+        sys.meta_path.remove(blocker)
+
+
+def test_mindmap_module_imports_without_cairosvg(no_cairosvg):
+    """The regression that took down a whole report: cairosvg was
+    imported at module level, so a client with zero transactions - who
+    has no mind map at all - still hit the missing system library."""
+    import importlib
+    import pipeline.mindmap as mm
+    importlib.reload(mm)
+    assert mm.cairosvg_available() is False
+    # The pure-Python half must remain usable.
+    assert mm.build_mindmap_recommendations_from_transactions([]) == []
+
+
+def test_report_generates_for_a_client_with_no_actions_without_cairosvg(no_cairosvg, tmp_path):
+    """JITENDER's case exactly: no actions, no mind map needed, and a
+    missing renderer must not block the report."""
+    from pipeline.report_assembler import assemble_report_context
+    from pipeline.docx_builder import build_report
+    from pipeline.summary_client import ClientSummary
+
+    result = _parsed((3, 65))          # the book with zero actions
+    client = _smallest_client(result)
+    assert not client.actions, "this fixture is expected to carry no actions"
+
+    assembled = assemble_report_context(client=client, as_of=date.today(), rm=RM)
+    assembled.ctx.client_summary = ClientSummary(text="Approved.", approved=True)
+    out = build_report(assembled.ctx, tmp_path / "no_actions.docx")
+    assert out.exists() and out.stat().st_size > 10_000
+
+
+def test_report_generates_with_recommendations_but_no_renderer(no_cairosvg, tmp_path):
+    """A client who DOES have recommendations still gets a report - the
+    diagram is skipped, the recommendations survive in the Transaction
+    Snapshot, and the section says which of the two happened."""
+    from pipeline.mindmap import MindmapUnavailable, generate_mindmap
+    from pipeline.report_assembler import assemble_report_context
+    from pipeline.docx_builder import build_report
+    from pipeline.summary_client import ClientSummary
+    from docx import Document
+
+    result = _parsed()
+    client = next(c for c in result.clients if c.actions)
+    assembled = assemble_report_context(client=client, as_of=date.today(), rm=RM)
+    assert assembled.mindmap_recommendations, "expected recommendations to draw"
+
+    with pytest.raises(MindmapUnavailable) as excinfo:
+        generate_mindmap(assembled.mindmap_recommendations,
+                         client_name=client.name, output_path=tmp_path / "mm.png")
+    assert "libcairo2" in str(excinfo.value)
+
+    ctx = assembled.ctx
+    ctx.mindmap_path = None
+    ctx.mindmap_unavailable_reason = str(excinfo.value)
+    ctx.client_summary = ClientSummary(text="Approved.", approved=True)
+
+    out = build_report(ctx, tmp_path / "with_recs.docx")
+    assert out.exists()
+
+    body = "\n".join(p.text for p in Document(str(out)).paragraphs)
+    assert "could not be rendered" in body, \
+        "the report must say the diagram is missing"
+    assert "No recommended changes for this review cycle." not in body, \
+        "a missing renderer must never be reported as the client having no recommendations"
+
+
+def test_app_generates_report_when_cairosvg_is_unavailable(no_cairosvg):
+    """End to end through the page with the renderer gone."""
+    result = _parsed()
+    at = _at_on_step3(result, next(c for c in result.clients if c.actions).name)
+    approve = next(cb for cb in at.checkbox if "approve this summary" in cb.label.lower())
+    at = approve.check().run()
+    at = _button(at, "Generate report").click().run()
+
+    assert not at.exception, at.exception
+    assert not at.error, [e.value[:300] for e in at.error]
+    assert at.session_state["deliverables"] is not None, \
+        "a missing optional renderer blocked the whole report"
+    assert any("mind map could not be drawn" in w.value.lower() for w in at.warning), \
+        [w.value for w in at.warning]

@@ -1,6 +1,15 @@
 # Pinned exactly. Streamlit Community Cloud installs from this file on
 # every rebuild, so an unpinned dependency means the app can start
 # failing on a day nobody touched it.
+#
+# Kept at the REPOSITORY ROOT alongside packages.txt. Streamlit Cloud
+# would also read this one from the entrypoint's directory, but
+# packages.txt is root-only, and splitting the two across directories is
+# how packages.txt came to be silently ignored on the first deploy.
+#
+# Every pin below has a prebuilt cp313 wheel. matplotlib 3.11.1 has no
+# cp314 wheel, so on Python 3.14 pip falls back to building it from
+# source - deploy the app on Python 3.13.
 
 streamlit==1.61.1
 openpyxl==3.1.5            # .xlsx reading (read_only + data_only)

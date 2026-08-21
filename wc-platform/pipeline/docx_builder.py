@@ -367,6 +367,13 @@ class ReportContext:
         "client.]"
     )
 
+    # Set when the mind map could not be RENDERED (cairosvg / libcairo
+    # missing), as opposed to there being nothing to draw. The section
+    # must not report a missing renderer as "no recommended changes" -
+    # that would tell an RM their client has no proposed actions when in
+    # fact the actions exist and the picture of them could not be drawn.
+    mindmap_unavailable_reason: Optional[str] = None
+
     # Stamped into the page footer of BOTH deliverables. Set once per run
     # by the caller (build_report_pdf_two_pass does this) so the docx and
     # the PDF derived from it carry the identical timestamp - if each
@@ -1197,6 +1204,17 @@ def _build_mindmap_section(doc: DocumentObject, ctx: ReportContext, cursor: _Lay
     if ctx.mindmap_path and Path(ctx.mindmap_path).exists():
         doc.add_picture(str(ctx.mindmap_path), width=Inches(6.5))
         cursor.add_atomic(_measure_picture_height_in(ctx.mindmap_path, 6.5))
+    elif ctx.mindmap_unavailable_reason:
+        # There ARE recommendations; the diagram could not be drawn. Say
+        # so, and point at the Transaction Snapshot, which carries the
+        # same information as a table.
+        _add_body_paragraph(
+            doc,
+            "The mind map could not be rendered in this environment. The recommended "
+            "changes it summarises are listed in full in the Transaction Snapshot section "
+            "below.",
+            italic=True, color=GRAY, cursor=cursor,
+        )
     else:
         _add_body_paragraph(doc, "No recommended changes for this review cycle.", color=GRAY, cursor=cursor)
 

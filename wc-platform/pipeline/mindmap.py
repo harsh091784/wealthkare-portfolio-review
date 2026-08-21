@@ -42,9 +42,19 @@ from pathlib import Path
 from typing import Optional, Union
 from xml.sax.saxutils import escape as xml_escape
 
-import cairosvg
-
 from pipeline.chart_gen import format_inr
+
+# NOTE: cairosvg is deliberately NOT imported here.
+#
+# It is only needed to rasterise the finished SVG, and it loads
+# libcairo.so.2 through cffi at import time. A module-level import means
+# a missing SYSTEM library raises an OSError the moment anything touches
+# this module - and report_assembler imports
+# build_mindmap_recommendations_from_transactions from here for every
+# client, including clients with no transactions and therefore no mind
+# map at all. That is exactly how a client with zero actions came to fail
+# on a renderer their report never uses. The import now lives inside
+# generate_mindmap(), the one function that actually rasterises.
 
 # --------------------------------------------------------------------------
 # Constants
@@ -369,6 +379,30 @@ def _render_section(
 # Top-level entry point
 # --------------------------------------------------------------------------
 
+class MindmapUnavailable(RuntimeError):
+    """The mind map could not be rasterised because cairosvg (or the
+    libcairo system library behind it) is unavailable.
+
+    Distinct from "this client has no recommendations": one is a missing
+    renderer, the other is an empty result, and a report must not present
+    the first as the second.
+    """
+
+
+def cairosvg_available() -> bool:
+    """Whether the mind map can be rendered in this environment.
+
+    Catches Exception rather than ImportError alone: the failure mode on
+    a Debian image without libcairo2 is an OSError raised by cffi's
+    dlopen from inside cairosvg's own import, not an ImportError.
+    """
+    try:
+        import cairosvg  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
 def generate_mindmap(
     recommendations: list,
     client_name: str,
@@ -435,6 +469,15 @@ def generate_mindmap(
         + "".join(sections_svg)
         + "</svg>"
     )
+
+    try:
+        import cairosvg
+    except Exception as exc:  # ImportError, or OSError from cffi's dlopen
+        raise MindmapUnavailable(
+            f"The mind map could not be rendered: cairosvg is unavailable "
+            f"({type(exc).__name__}: {exc}). On Debian this needs the libcairo2 "
+            f"system package. Everything else in the report is unaffected."
+        ) from exc
 
     cairosvg.svg2png(
         bytestring=svg_doc.encode("utf-8"),
