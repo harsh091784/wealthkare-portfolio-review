@@ -34,11 +34,12 @@ apostrophes. Explanations belong here, not in the file.
   than the full suite: same binary, far smaller, and the full suite often
   exceeds the Community Cloud build limit.
 
-### Not currently installed: `fonts-dejavu`
-
-The report specifies DejaVu Sans on every element that prints a rupee sign,
-because other fonts substitute a missing-glyph box for `₹`. If rendered PDFs
-show boxes instead of `₹`, add `fonts-dejavu` as a third bare line.
+- **`fonts-dejavu`** — supplies DejaVu Sans, which the report names explicitly
+  on every element that prints a rupee sign. Other fonts substitute a
+  missing-glyph box for `₹`, which is a real rendering bug rather than a
+  cosmetic one: LibreOffice picks a substitute at conversion time, so the
+  font has to exist on the machine doing the rendering, not just on the
+  machine that wrote the document.
 
 ## Graceful degradation
 
