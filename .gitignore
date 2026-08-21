@@ -1,0 +1,38 @@
+# Secrets - MUST be ignored before the first commit.
+# Both of these have held a live Anthropic API key during development.
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+**/.streamlit/secrets.toml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.venv_test/
+*.egg-info/
+.pytest_cache/
+
+# Build output
+_test_output/
+*.docx.tmp
+
+# OS
+.DS_Store
+
+# Real client portfolio files - PANs, names, holdings, valuations.
+# Working copies live in tests/data/ so the parser can be run against
+# them locally; they must never enter version control.
+wc-platform/tests/data/*.xlsx
+wc-platform/tests/data/*.xls
+
+# Generated client reports. The app writes finished PDFs and .docx here,
+# one directory per client - real names and valuations. Same rule as
+# tests/data: these are outputs about real people, not build artefacts.
+_generated/
+wc-platform/_generated/
+
+# Local editor state: machine-specific paths, and permissions scoped to
+# this workstation rather than to the project.
+.claude/settings.local.json

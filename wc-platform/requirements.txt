@@ -1,0 +1,15 @@
+# Pinned exactly. Streamlit Community Cloud installs from this file on
+# every rebuild, so an unpinned dependency means the app can start
+# failing on a day nobody touched it.
+
+streamlit==1.61.1
+openpyxl==3.1.5            # .xlsx reading (read_only + data_only)
+python-docx==1.2.0         # report construction
+matplotlib==3.11.1         # donut / gauge / scatter charts
+cairosvg==2.9.0            # mind map SVG -> PNG (needs libcairo2, see packages.txt)
+pymupdf==1.28.2            # TOC page detection, PDF page counts
+pillow==12.3.0             # font metrics for column widths; imported directly by
+                           # docx_builder, mindmap and chart_gen, so pinned in its
+                           # own right rather than relied on as a matplotlib
+                           # transitive dependency
+anthropic==0.122.0         # the single Client Summary call
